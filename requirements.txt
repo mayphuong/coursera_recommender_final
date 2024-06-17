@@ -5,3 +5,4 @@ pyspark
 matplotlib
 nltk
 scikit-learn
+scipy
