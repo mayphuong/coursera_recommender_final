@@ -6,8 +6,8 @@ import streamlit as st
 # Import necessary libraries
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+# import matplotlib.pyplot as plt
+# import seaborn as sns
 from dataprep.eda import plot
 
 from sklearn.feature_extraction.text import TfidfVectorizer
