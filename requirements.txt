@@ -4,3 +4,4 @@ surprise
 pyspark
 matplotlib
 nltk
+scikit-learn
