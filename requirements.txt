@@ -1,8 +1,8 @@
-dataprep
+# dataprep
 gensim
 surprise
-pyspark
 matplotlib
 nltk
 scikit-learn
 scipy==1.12
+seaborn

@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from dataprep.eda import plot
+# from dataprep.eda import plot
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel, cosine_similarity
@@ -62,6 +62,36 @@ with tab1:
         Start your personalized learning experience with **CourseFinder** today!
     """, unsafe_allow_html=True)
 
+#Feature engineering for the usage of 2 models
+# 1. Read data
+courses = pd.read_csv("courses.csv", encoding='utf-8')
+reviews = pd.read_csv("reviews.csv", encoding='utf-8')
+
+# 2. Data pre-processing
+
+# Drop duplicates
+courses.drop_duplicates(inplace=True)
+reviews.drop_duplicates(inplace=True)
+
+# Drop unnecessary columns
+courses.drop('CourseID', axis=1, inplace=True)
+reviews.drop('DateOfReview', axis=1, inplace=True)
+
+# Convert columns of object datatype to string
+courses = courses.astype({col: 'string' for col in courses.select_dtypes('object').columns})
+reviews = reviews.astype({col: 'string' for col in reviews.select_dtypes('object').columns})
+
+# Handle missing values
+courses['Level'].fillna('N/A', inplace=True)
+courses['Results'].fillna('N/A', inplace=True)
+courses['Unit'].fillna('N/A', inplace=True)
+reviews.dropna(subset=['ReviewContent'], inplace=True)
+
+# Strip ' level' from Level
+courses['Level'] = courses['Level'].str.replace(' level', '')
+
+# Strip 'By ' from ReviewerName
+reviews['ReviewerName'] = reviews['ReviewerName'].str.strip('By ')
 
 with tab2:
     st.header("Find a Course")
@@ -76,55 +106,24 @@ with tab2:
     with col2:
         find_matches = st.button('Find Best Matches', key="find_matches")
 
-    # 1. Read data
-    courses = pd.read_csv("courses.csv", encoding='utf-8')
-    reviews = pd.read_csv("reviews.csv", encoding='utf-8')
-
-    # 2. Data pre-processing
-
-    # Drop duplicates
-    courses.drop_duplicates(inplace=True)
-    reviews.drop_duplicates(inplace=True)
-
-    # Drop unnecessary columns
-    courses.drop('CourseID', axis=1, inplace=True)
-    reviews.drop('DateOfReview', axis=1, inplace=True)
-
-    # Convert columns of object datatype to string
-    courses = courses.astype({col: 'string' for col in courses.select_dtypes('object').columns})
-    reviews = reviews.astype({col: 'string' for col in reviews.select_dtypes('object').columns})
-
-    # Handle missing values
-    courses['Level'].fillna('N/A', inplace=True)
-    courses['Results'].fillna('N/A', inplace=True)
-    courses['Unit'].fillna('N/A', inplace=True)
-    reviews.dropna(subset=['ReviewContent'], inplace=True)
-
-    # Strip ' level' from Level
-    courses['Level'] = courses['Level'].str.replace(' level', '')
-
-    # Strip 'By ' from ReviewerName
-    reviews['ReviewerName'] = reviews['ReviewerName'].str.strip('By ')
-
-    # Engineer features
+    # 1. Engineer features
     # Get the list of string columns
     # string_cols = list(courses.select_dtypes(include='string').columns)
     courses['Course'] = courses[['CourseName', 'Unit', 'Level', 'Results']].apply(lambda x: ' '.join(x.dropna().astype(str)), axis=1)
     courses['ProcessedCourse'] = courses['Course'].apply(strip_punctuation)\
-                                              .apply(strip_multiple_whitespaces)\
-                                              .apply(strip_non_alphanum)\
-                                              .apply(strip_numeric)\
-                                              .apply(lower_to_unicode)\
-                                              .apply(remove_stopwords)
-    
+                                                .apply(strip_multiple_whitespaces)\
+                                                .apply(strip_non_alphanum)\
+                                                .apply(strip_numeric)\
+                                                .apply(lower_to_unicode)\
+                                                .apply(remove_stopwords)
+
     # Tokenize Course
     courses['TokenizedCourse'] = courses['ProcessedCourse'].progress_apply(word_tokenize)
 
     # Remove reviews by Deleted A
     reviews = reviews[reviews.ReviewerName != 'Deleted A']
 
-
-    # 3. Build model
+    # 2. Build model
 
     ## Gensim
     # Create a dictionary representation of the documents
@@ -157,14 +156,14 @@ with tab2:
                 break
         return results
 
-    # 4. Save Gensim model
+    # 3. Save Gensim model
     pkl_gensim = "gensim_model.pkl"
     tfidf.save(pkl_gensim)
 
-    # 5. Load Gensim model
+    # 4. Load Gensim model
     gensim_model = models.TfidfModel.load(pkl_gensim)
 
-    # 6. GUI
+    # 5. GUI
     # Initialize session state for selected courses
     if 'gensim_suggested_courses' not in st.session_state:
         st.session_state['gensim_suggested_courses'] = []
@@ -182,17 +181,22 @@ with tab2:
         # Iterate over the suggested courses and display their details
         for course_name in gensim_suggested_courses:
             # Find the course details
-            course_details = courses[courses['CourseName'] == course_name].iloc[0]
+            course_details = courses[courses['CourseName'] == course_name]
+
+            if len(course_details) > 0:
+                course_details = course_details.iloc[0]
             
-            # Display the course details using st.write or st.table
-            st.markdown(f"<h2 style='font-size:125%;'><b>{course_details['CourseName']}</b></h2>", unsafe_allow_html=True)
-            st.write("Description:", course_details['Results'])
-            st.write("Provider:", course_details['Unit'])
-            st.write("Average Rating:", course_details['AvgStar'])
-            st.write("Level:", course_details['Level'])
-            
-            # Add a separator for better readability
-            st.markdown("---")
+                # Display the course details using st.write or st.table
+                st.markdown(f"<h2 style='font-size:125%;'><b>{course_details['CourseName']}</b></h2>", unsafe_allow_html=True)
+                st.write("Description:", course_details['Results'])
+                st.write("Provider:", course_details['Unit'])
+                st.write("Average Rating:", course_details['AvgStar'])
+                st.write("Level:", course_details['Level'])
+                
+                # Add a separator for better readability
+                st.markdown("---")
+            else:
+                continue
 
 with tab3:
     # 1. Build SVD model
@@ -247,17 +251,22 @@ with tab3:
             # Iterate over the suggested courses and display their details
             for course_name in svd_suggested_courses:
                 # Find the course details
-                svd_course_details = courses[courses['CourseName'] == course_name].iloc[0]
+                svd_course_details = courses[courses['CourseName'] == course_name]
+
+                if len(svd_course_details) > 0:
+                    svd_course_details = svd_course_details.iloc[0]
                 
-                # Display the course details using st.write or st.table
-                st.markdown(f"<h2 style='font-size:125%;'><b>{svd_course_details['CourseName']}</b></h2>", unsafe_allow_html=True)
-                st.write("Description:", svd_course_details['Results'])
-                st.write("Provider:", svd_course_details['Unit'])
-                st.write("Average Rating:", svd_course_details['AvgStar'])
-                st.write("Level:", svd_course_details['Level'])
-                
-                # Add a separator for better readability
-                st.markdown("---")
+                    # Display the course details using st.write or st.table
+                    st.markdown(f"<h2 style='font-size:125%;'><b>{svd_course_details['CourseName']}</b></h2>", unsafe_allow_html=True)
+                    st.write("Description:", svd_course_details['Results'])
+                    st.write("Provider:", svd_course_details['Unit'])
+                    st.write("Average Rating:", svd_course_details['AvgStar'])
+                    st.write("Level:", svd_course_details['Level'])
+                    
+                    # Add a separator for better readability
+                    st.markdown("---")
+                else:
+                    continue
             # for pick in top_picks:
             #     st.write(pick)
         else:
