@@ -6,8 +6,8 @@ import streamlit as st
 # Import necessary libraries
 import pandas as pd
 import numpy as np
-# import matplotlib.pyplot as plt
-# import seaborn as sns
+import matplotlib.pyplot as plt
+import seaborn as sns
 from dataprep.eda import plot
 
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -45,7 +45,7 @@ from nltk.corpus import stopwords
 st.title("CourseRec for Coursera")
 
 # Create tabs
-tab1, tab2, tab3, tab4 = st.tabs(["HOME", "FIND A COURSE", "ABOUT US", "ABOUT THIS PROJECT"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["HOME", "FIND A COURSE", "TOP PICKS FOR YOU", "ABOUT US", "ABOUT THIS PROJECT"])
 
 with tab1:
     # st.header("Home")
@@ -95,8 +95,9 @@ with tab2:
     reviews = reviews.astype({col: 'string' for col in reviews.select_dtypes('object').columns})
 
     # Handle missing values
-    courses['Level'].fillna('', inplace=True)
-    courses['Results'].fillna('', inplace=True)
+    courses['Level'].fillna('N/A', inplace=True)
+    courses['Results'].fillna('N/A', inplace=True)
+    courses['Unit'].fillna('N/A', inplace=True)
     reviews.dropna(subset=['ReviewContent'], inplace=True)
 
     # Strip ' level' from Level
@@ -155,77 +156,31 @@ with tab2:
             if len(results) == num:
                 break
         return results
-    # # Print results
-    # print(f"Similar courses to '{course}':\n")
-    # for result in results:
-    #   print(result)
 
-    # ## SVD
-    # reader = Reader(rating_scale=(1, 5))
-    # data = Dataset.load_from_df(reviews[['ReviewerName', 'CourseName', 'RatingStar']], reader)
-
-    # # Singular value decomposition
-    # algorithm = SVD()
-
-    # # Run 5-fold cross-validation and print results
-    # results = cross_validate(algorithm, data, measures=['RMSE', 'MAE'], cv=5, verbose=True)
-
-    # # Fit trainset to the SVD model
-    # trainset = data.build_full_trainset()
-    # algorithm.fit(trainset)
-
-    # # Define a function to suggest courses to a specific reviewer
-    # def similar_svd(name, num=5):
-    #   reviewed = reviews[reviews['ReviewerName']==name]['CourseName'].to_list()
-    #   results = reviews[['CourseName']].copy()
-    #   results['EstScore'] = results['CourseName'].apply(lambda x: algorithm.predict(name, x).est)
-    #   results = results.sort_values(by=['EstScore'], ascending=False).drop_duplicates()
-    #   results = results[~results['CourseName'].isin(reviewed)]
-
-    #   return results
-
-    #4. Evaluate model
-
-    # Test the model with random courses
-    similar_gensim('Davis')
-    similar_gensim('machine learning')
-    similar_gensim('data science')
-
-
-    #5. Save models
-    # Save Gensim model
+    # 4. Save Gensim model
     pkl_gensim = "gensim_model.pkl"
     tfidf.save(pkl_gensim)
 
-    # # Save SVD model
-    # pkl_svd = "svd_model.pkl"
-    # with open(pkl_svd, 'wb') as file:  
-    #     pickle.dump(algorithm, file)
-
-    #6. Load models 
-    # Load Gensim model
+    # 5. Load Gensim model
     gensim_model = models.TfidfModel.load(pkl_gensim)
 
-    # # Load SVD model
-    # with open(pkl_svd, 'rb') as file:
-    #     svd_model = pickle.load(file)
-
+    # 6. GUI
     # Initialize session state for selected courses
-    if 'selected_courses' not in st.session_state:
-        st.session_state['selected_courses'] = []
+    if 'gensim_suggested_courses' not in st.session_state:
+        st.session_state['gensim_suggested_courses'] = []
 
 
     # Define a function to suggest courses similar to user input
-    def suggest_courses(user_input):
-        suggested_courses = similar_gensim(user_input)
-        return suggested_courses
+    def suggest_courses_gensim(user_input):
+        gensim_suggested_courses = similar_gensim(user_input)
+        return gensim_suggested_courses
 
     # Display the suggested courses and their details
     if find_matches:
-        suggested_courses = suggest_courses(user_input)
+        gensim_suggested_courses = suggest_courses_gensim(user_input)
         
         # Iterate over the suggested courses and display their details
-        for course_name in suggested_courses:
+        for course_name in gensim_suggested_courses:
             # Find the course details
             course_details = courses[courses['CourseName'] == course_name].iloc[0]
             
@@ -236,11 +191,81 @@ with tab2:
             st.write("Average Rating:", course_details['AvgStar'])
             st.write("Level:", course_details['Level'])
             
-            # You can add a separator for better readability
+            # Add a separator for better readability
             st.markdown("---")
 
-
 with tab3:
+    # 1. Build SVD model
+    reader = Reader(rating_scale=(1, 5))
+    data = Dataset.load_from_df(reviews[['ReviewerName', 'CourseName', 'RatingStar']], reader)
+
+    # Singular value decomposition
+    algorithm = SVD()
+
+    # Fit trainset to the SVD model
+    trainset = data.build_full_trainset()
+    algorithm.fit(trainset)
+
+    # Define a function to suggest courses to a specific reviewer
+    def similar_svd(name, num=5):
+        reviewed = reviews[reviews['ReviewerName']==name]['CourseName'].to_list()
+        results = reviews[['CourseName']].copy()
+        results['EstScore'] = results['CourseName'].apply(lambda x: algorithm.predict(name, x).est)
+        results = results.sort_values(by=['EstScore'], ascending=False).drop_duplicates()
+        results = results[~results['CourseName'].isin(reviewed)]['CourseName'].to_list()[:num]
+        return results
+    
+    # 2. Save SVD model
+    from surprise import dump
+    dump.dump('svd_model', algo=algorithm)
+
+    # 3. Load SVD model
+    _, loaded_algorithm = dump.load('svd_model')
+    
+    # 4. GUI
+    # Initialize session state for selected courses
+    if 'svd_suggested_courses' not in st.session_state:
+        st.session_state['svd_suggested_courses'] = []
+
+    # Define a function to suggest courses similar to user input
+    def svd_suggest_courses(user_name_input):
+        svd_suggested_courses = similar_svd(user_name_input)
+        return svd_suggested_courses
+    
+    user_name_input = st.text_input('Please enter your name:', '')
+    st.caption('e.g. Kevin M, Jianfei Z, Aman J, pooja s, Lauren J, etc.')
+
+    if st.button('Login'):
+        if user_name_input in reviews['ReviewerName'].values:
+            st.success('Successfully logged in!')
+            svd_suggested_courses = svd_suggest_courses(user_name_input)
+            st.subheader('TOP PICKS FOR YOU')
+            # Display the suggested courses and their details
+            # if find_matches:
+                # svd_suggested_courses = svd_suggest_courses(user_name_input)
+            
+            # Iterate over the suggested courses and display their details
+            for course_name in svd_suggested_courses:
+                # Find the course details
+                svd_course_details = courses[courses['CourseName'] == course_name].iloc[0]
+                
+                # Display the course details using st.write or st.table
+                st.markdown(f"<h2 style='font-size:125%;'><b>{svd_course_details['CourseName']}</b></h2>", unsafe_allow_html=True)
+                st.write("Description:", svd_course_details['Results'])
+                st.write("Provider:", svd_course_details['Unit'])
+                st.write("Average Rating:", svd_course_details['AvgStar'])
+                st.write("Level:", svd_course_details['Level'])
+                
+                # Add a separator for better readability
+                st.markdown("---")
+            # for pick in top_picks:
+            #     st.write(pick)
+        else:
+            st.error('No user information found, please try again.')
+
+
+    
+with tab4:
     # Create two columns for the profiles
     col1, col2 = st.columns(2)
 
@@ -249,7 +274,7 @@ with tab3:
         st.subheader("Phuong N.")
         st.write("Email: phuong.n@gmail.com")
         st.write('Phone: +123456789')
-        st.write('Role: Model Fine-Tuning Specialist')
+        st.write('Role: Model Fine-Tuning')
         st.write('''
             Phuong played a pivotal role in enhancing the performance of our recommendation system. 
             With a keen eye for detail, Phuong meticulously fine-tuned the model parameters to improve accuracy and ensure the most relevant course suggestions.
@@ -260,7 +285,7 @@ with tab3:
         st.subheader("Linh N.")
         st.write("Email: linh.n@gmail.com")
         st.write('Phone: +987654321')
-        st.write('Role: Data Processing and Modelling Expert')
+        st.write('Role: Data Processing and Modelling')
         st.write('''
             Linh was instrumental in constructing the foundation of our recommendation system. 
             From data collection to preprocessing, Linh ensured the data was clean and structured. 
@@ -274,7 +299,7 @@ with tab3:
     ''')
 
 
-with tab4:
+with tab5:
     st.subheader("Objectives")
     st.write('''
         This project is designed to empower users with a robust course recommendation system. 
