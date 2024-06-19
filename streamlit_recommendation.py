@@ -209,15 +209,6 @@ with tab3:
     # Fit trainset to the SVD model
     trainset = data.build_full_trainset()
     algorithm.fit(trainset)
-
-    # Define a function to suggest courses to a specific reviewer
-    def similar_svd(name, num=5):
-        reviewed = reviews[reviews['ReviewerName']==name]['CourseName'].to_list()
-        results = reviews[['CourseName']].copy()
-        results['EstScore'] = results['CourseName'].apply(lambda x: algorithm.predict(name, x).est)
-        results = results.sort_values(by=['EstScore'], ascending=False).drop_duplicates()
-        results = results[~results['CourseName'].isin(reviewed)]['CourseName'].to_list()[:num]
-        return results
     
     # 2. Save SVD model
     from surprise import dump
@@ -225,6 +216,15 @@ with tab3:
 
     # 3. Load SVD model
     _, loaded_algorithm = dump.load('svd_model')
+
+    # Define a function to suggest courses to a specific reviewer
+    def similar_svd(name, num=5):
+        reviewed = reviews[reviews['ReviewerName']==name]['CourseName'].to_list()
+        results = reviews[['CourseName']].copy()
+        results['EstScore'] = results['CourseName'].apply(lambda x: loaded_algorithm.predict(name, x).est)
+        results = results.sort_values(by=['EstScore'], ascending=False).drop_duplicates()
+        results = results[~results['CourseName'].isin(reviewed)]['CourseName'].to_list()[:num]
+        return results
     
     # 4. GUI
     # Initialize session state for selected courses
