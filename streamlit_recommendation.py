@@ -39,10 +39,36 @@ import nltk
 nltk.download('punkt')
 nltk.download('stopwords')
 from nltk.corpus import stopwords
-
 #--------------
 # GUI
+
+# Custom CSS to inject
+custom_css = """
+<style>
+.stTabs [data-baseweb="tab-list"] {
+    display: flex;
+    justify-content: space-between;
+}
+.stTabs [data-baseweb="tab"] {
+    flex: 1;
+    text-align: center;
+    background-color: #F3F0EA;
+    color: #0056D2;
+    border-radius: 4px 4px 0px 0px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+.stTabs [aria-selected="true"] {
+    background-color: #0056D2;
+    color: #F3F0EA;
+}
+</style>
+"""
+
+st.markdown(custom_css, unsafe_allow_html=True)
+
 st.title("CourseRec for Coursera")
+st.markdown("<style>div.stButton > button:first-child { background-color: #0056D2; color: #0056D2; }</style>", unsafe_allow_html=True)
 
 # Create tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["HOME", "FIND A COURSE", "TOP PICKS FOR YOU", "ABOUT US", "ABOUT THIS PROJECT"])
@@ -50,19 +76,20 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["HOME", "FIND A COURSE", "TOP PICKS FOR 
 with tab1:
     # st.header("Home")
     st.markdown("""
-        #### Welcome to CourseRec!
+        #### Welcome to CourseRec for Coursera!
         
-        **CourseFinder** is your go-to app for discovering the best Coursera courses tailored to your interests and professional goals. 
+        **CourseRec for Coursera** is your go-to app for discovering the best Coursera courses tailored to your interests and professional goals. 
         
         ##### How It Works:
-        - Simply **enter a keyword** related to the skills or topics you're interested in learning.
-        - Hit the **'Find Best Matches'** button to generate a list of recommended courses.
+        - **Find a Course:** Enter a keyword or course name in the search bar to find courses that closely match your query.
+        - **Top Picks for You:** Enter your name if you're a Coursera learner. We'll recommend courses based on your learning and review history.
         - Explore course details and select the one that best fits your learning journey.
         
-        Start your personalized learning experience with **CourseFinder** today!
+        Start your personalized learning experience with **CourseRec for Coursera** today!
+                
     """, unsafe_allow_html=True)
 
-#Feature engineering for the usage of 2 models
+# Feature engineering for the usage of 2 models
 # 1. Read data
 courses = pd.read_csv("courses.csv", encoding='utf-8')
 reviews = pd.read_csv("reviews.csv", encoding='utf-8')
@@ -120,12 +147,7 @@ with tab2:
     # Tokenize Course
     courses['TokenizedCourse'] = courses['ProcessedCourse'].progress_apply(word_tokenize)
 
-    # Remove reviews by Deleted A
-    reviews = reviews[reviews.ReviewerName != 'Deleted A']
-
-    # 2. Build model
-
-    ## Gensim
+    # 2. Build Gensim model
     # Create a dictionary representation of the documents
     dictionary = Dictionary(courses['TokenizedCourse'])
 
@@ -199,6 +221,11 @@ with tab2:
                 continue
 
 with tab3:
+    # 0. Remove reviews by Deleted A
+    reviews = reviews[reviews.ReviewerName != 'Deleted A']
+
+    # np.random.seed(442)
+
     # 1. Build SVD model
     reader = Reader(rating_scale=(1, 5))
     data = Dataset.load_from_df(reviews[['ReviewerName', 'CourseName', 'RatingStar']], reader)
@@ -242,14 +269,19 @@ with tab3:
     if st.button('Login'):
         if user_name_input in reviews['ReviewerName'].values:
             st.success('Successfully logged in!')
-            svd_suggested_courses = svd_suggest_courses(user_name_input)
+
+            # Update the session state with suggested courses
+            st.session_state['svd_suggested_courses'] = svd_suggest_courses(user_name_input)
+            # svd_suggested_courses = svd_suggest_courses(user_name_input)
+
             st.subheader('TOP PICKS FOR YOU')
             # Display the suggested courses and their details
             # if find_matches:
                 # svd_suggested_courses = svd_suggest_courses(user_name_input)
             
             # Iterate over the suggested courses and display their details
-            for course_name in svd_suggested_courses:
+            for course_name in st.session_state['svd_suggested_courses']:
+            # for course_name in svd_suggested_courses:
                 # Find the course details
                 svd_course_details = courses[courses['CourseName'] == course_name]
 
@@ -271,25 +303,12 @@ with tab3:
             #     st.write(pick)
         else:
             st.error('No user information found, please try again.')
-
-
     
 with tab4:
     # Create two columns for the profiles
     col1, col2 = st.columns(2)
 
     with col1:
-        # Profile for Phuong N.
-        st.subheader("Phuong N.")
-        st.write("Email: phuong.n@gmail.com")
-        st.write('Phone: +123456789')
-        st.write('Role: Model Fine-Tuning')
-        st.write('''
-            Phuong played a pivotal role in enhancing the performance of our recommendation system. 
-            With a keen eye for detail, Phuong meticulously fine-tuned the model parameters to improve accuracy and ensure the most relevant course suggestions.
-        ''')
-
-    with col2:
         # Profile for Linh N.
         st.subheader("Linh N.")
         st.write("Email: linh.n@gmail.com")
@@ -301,6 +320,17 @@ with tab4:
             Linh's expertise in modeling also contributed significantly to the initial build of our system.
         ''')
 
+    with col2:
+        # Profile for Phuong N.
+        st.subheader("Phuong N.")
+        st.write("Email: phuong.n@gmail.com")
+        st.write('Phone: +123456789')
+        st.write('Role: Model Fine-Tuning')
+        st.write('''
+            Phuong played a pivotal role in enhancing the performance of our recommendation system. 
+            With a keen eye for detail, Phuong meticulously fine-tuned the model parameters to improve accuracy and ensure the most relevant course suggestions.
+        ''')
+
     # Add a section for shared responsibilities
     st.write('''
         Both Phuong N. and Linh N. brought their unique strengths to the table in a collaborative effort on the app design. 
@@ -309,16 +339,27 @@ with tab4:
 
 
 with tab5:
-    st.subheader("Objectives")
-    st.write('''
-        This project is designed to empower users with a robust course recommendation system. 
-        By entering any keyword related to skills, expertise, educational institutions, course names, or levels, 
-        our system leverages a sophisticated gensim model to analyze and recommend the top 5 best-matching Coursera courses. 
-        Our goal is to streamline the process of finding the right course tailored to each user's unique learning journey.
-    ''')
-    st.subheader("Techniques")
-    st.write('''
-        Under the hood, we utilize advanced natural language processing techniques. 
-        The text data is meticulously processed using gensim and nltk methods to ensure high-quality recommendations. 
-        We remove stopwords, vectorize, and tokenize the English text, refining the data that our gensim model analyzes.
-    ''')
+
+    # Introduction
+    st.markdown("#### Introduction")
+    st.markdown("Our project aims to develop a recommendation system for Coursera, a prominent technological educational platform. This system is designed to enhance the user experience by guiding learners towards relevant learning courses.")
+
+    # Recommendation Modes
+    st.markdown("#### Recommendation Modes")
+    st.markdown("The system operates in two primary modes:")
+    st.markdown("- **Content-based Filtering:** Users can find courses by entering search queries related to their interests, skill sets, or desired technologies.")
+    st.markdown("- **Collaborative Filtering:** Leveraging profiles of similar learners, the system recommends courses based on their preferences and learning history on Coursera.")
+
+    # Machine Learning Models
+    st.markdown("#### Machine Learning Models")
+    st.markdown("Recommendations are generated using two machine learning models:")
+    st.markdown("- **GenSim with TFIDF:** This model processes textual data to recommend courses based on keyword relevance.")
+    st.markdown("- **SVD (Singular Value Decomposition):** This model analyzes user-course interactions to provide personalized recommendations.")
+
+    # Data Sources
+    st.markdown("#### Data Sources")
+    st.markdown("The models are trained on a dataset extracted from Coursera, focusing specifically on courses within data science and machine learning. The dataset includes comprehensive information about courses and user reviews, ensuring accurate and effective recommendations.")
+
+    # Project Goals
+    st.markdown("#### Project Goals")
+    st.markdown("By providing personalized course suggestions, our project aims to encourage learners to explore a diverse range of courses and foster sustained engagement with Coursera.")
