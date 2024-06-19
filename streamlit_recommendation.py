@@ -160,6 +160,7 @@ with tab2:
                                                 num_features = len(dictionary.token2id))
 
     # Define a function to suggest courses similar to a particular one
+    @st.cache_data(ttl="7 days")
     def similar_gensim(course, num=5):
         # Prepocess the course name
         tokens = course.lower().split()
@@ -245,6 +246,7 @@ with tab3:
     _, loaded_algorithm = dump.load('svd_model')
 
     # Define a function to suggest courses to a specific reviewer
+    @st.cache_data(ttl="7 days")
     def similar_svd(name, num=5):
         reviewed = reviews[reviews['ReviewerName']==name]['CourseName'].to_list()
         results = reviews[['CourseName']].copy()
