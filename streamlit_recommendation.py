@@ -220,7 +220,8 @@ with tab2:  # FIND A COURSE (GENSIM)
     ## 5. GUI
     # Create a subheader
     st.subheader("Find a Course")
-    
+    sidebar = st.sidebar
+
     # Create two columns for user input and button
     col1, col2 = st.columns([3, 1])
 
