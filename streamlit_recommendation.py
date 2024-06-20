@@ -62,6 +62,47 @@ custom_css = """
     background-color: #0056D2;
     color: #F3F0EA;
 }
+
+[data-testid="textInputRootElement"]{
+    border: none ;
+} 
+
+
+[data-baseweb="base-input"]{
+    background-color: rgb(243, 240, 234);
+    border: solid ;
+} 
+
+[data-baseweb="tab-panel"]{
+    color: black;
+} 
+
+[data-testid="stHorizontalBlock"] {
+  align-items: flex-start;
+}
+
+[data-testid="baseButton-secondary"] {
+  margin-top: 30px;
+  color: white !important;
+
+}
+
+[data-testid="stWidgetLabel"] {
+  color: black;
+}
+
+code {
+    padding: 0.2em 0.4em;
+    margin: 0px;
+    border-radius: 0.25rem;
+    background: rgb(243, 240, 234);
+    color: rgb(9, 171, 59);
+    font-size: 14px;
+    font-weight: bold;
+}
+
+
+
 </style>
 """
 
@@ -73,11 +114,9 @@ st.markdown("<style>div.stButton > button:first-child { background-color: #0056D
 # Create tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["HOME", "FIND A COURSE", "TOP PICKS FOR YOU", "ABOUT US", "ABOUT THIS PROJECT"])
 
-with tab1:
-    # st.header("Home")
+with tab1:  # HOME
+    st.subheader("Welcome to CourseRec for Coursera!")
     st.markdown("""
-        #### Welcome to CourseRec for Coursera!
-        
         **CourseRec for Coursera** is your go-to app for discovering the best Coursera courses tailored to your interests and professional goals. 
         
         ##### How It Works:
@@ -90,11 +129,11 @@ with tab1:
     """, unsafe_allow_html=True)
 
 # Feature engineering for the usage of 2 models
-# 1. Read data
+## 1. Read data
 courses = pd.read_csv("courses.csv", encoding='utf-8')
 reviews = pd.read_csv("reviews.csv", encoding='utf-8')
 
-# 2. Data pre-processing
+## 2. Data pre-processing
 
 # Drop duplicates
 courses.drop_duplicates(inplace=True)
@@ -120,22 +159,9 @@ courses['Level'] = courses['Level'].str.replace(' level', '')
 # Strip 'By ' from ReviewerName
 reviews['ReviewerName'] = reviews['ReviewerName'].str.strip('By ')
 
-with tab2:
-    st.header("Find a Course")
-    # Create two columns for user input and button
-    col1, col2 = st.columns([3, 1])
-
-    # User input in the first column with a unique key
-    with col1:
-        user_input = st.text_input("What do you want to learn?")
-
-    # Button in the second column
-    with col2:
-        find_matches = st.button('Find Best Matches', key="find_matches")
-
-    # 1. Engineer features
+with tab2:  # FIND A COURSE (GENSIM)
+    ## 1. Engineer features
     # Get the list of string columns
-    # string_cols = list(courses.select_dtypes(include='string').columns)
     courses['Course'] = courses[['CourseName', 'Unit', 'Level', 'Results']].apply(lambda x: ' '.join(x.dropna().astype(str)), axis=1)
     courses['ProcessedCourse'] = courses['Course'].apply(strip_punctuation)\
                                                 .apply(strip_multiple_whitespaces)\
@@ -147,7 +173,7 @@ with tab2:
     # Tokenize Course
     courses['TokenizedCourse'] = courses['ProcessedCourse'].progress_apply(word_tokenize)
 
-    # 2. Build Gensim model
+    ## 2. Build Gensim model
     # Create a dictionary representation of the documents
     dictionary = Dictionary(courses['TokenizedCourse'])
 
@@ -164,12 +190,16 @@ with tab2:
     def similar_gensim(course, num=5):
         # Prepocess the course name
         tokens = course.lower().split()
+        
         # Create a bag of words from the course name
         bow = dictionary.doc2bow(tokens)
+        
         # Calculate similarity
         sim = index[tfidf[bow]]
+        
         # Sort similarity in a descending order
         sim = sorted(enumerate(sim), key=lambda item: -item[1])
+
         # Get names of most similar courses
         results = []
         for x, y in sim:
@@ -177,20 +207,34 @@ with tab2:
                 results.append(courses.iloc[x]['CourseName'])
             if len(results) == num:
                 break
+            
         return results
 
-    # 3. Save Gensim model
+    ## 3. Save Gensim model
     pkl_gensim = "gensim_model.pkl"
     tfidf.save(pkl_gensim)
 
-    # 4. Load Gensim model
+    ## 4. Load Gensim model
     gensim_model = models.TfidfModel.load(pkl_gensim)
 
-    # 5. GUI
+    ## 5. GUI
+    # Create a subheader
+    st.subheader("Find a Course")
+    
+    # Create two columns for user input and button
+    col1, col2 = st.columns([3, 1])
+
+    # User input in the first column with a unique key
+    with col1:
+        user_input = st.text_input("What do you want to learn?")
+
+    # Button in the second column
+    with col2:
+        find_matches = st.button('Find Best Matches', key="find_matches")
+
     # Initialize session state for selected courses
     if 'gensim_suggested_courses' not in st.session_state:
         st.session_state['gensim_suggested_courses'] = []
-
 
     # Define a function to suggest courses similar to user input
     def suggest_courses_gensim(user_input):
@@ -211,23 +255,24 @@ with tab2:
             
                 # Display the course details using st.write or st.table
                 st.markdown(f"<h2 style='font-size:125%;'><b>{course_details['CourseName']}</b></h2>", unsafe_allow_html=True)
-                st.write("Description:", course_details['Results'])
-                st.write("Provider:", course_details['Unit'])
-                st.write("Average Rating:", course_details['AvgStar'])
-                st.write("Level:", course_details['Level'])
+                st.write("**Description:**", course_details['Results'])
+                st.write("**Provider:**", course_details['Unit'])
+                st.write("**Average Rating:**", course_details['AvgStar'])
+                st.write("**Level:**", course_details['Level'])
                 
                 # Add a separator for better readability
                 st.markdown("---")
             else:
                 continue
 
-with tab3:
-    # 0. Remove reviews by Deleted A
+with tab3:  # TOP PICKS FOR YOU (SVD)
+    # Create a subheader
+    st.subheader("Top Picks for You")
+
+    ## 1. Remove reviews by Deleted A
     reviews = reviews[reviews.ReviewerName != 'Deleted A']
 
-    # np.random.seed(442)
-
-    # 1. Build SVD model
+    ## 2. Build SVD model
     reader = Reader(rating_scale=(1, 5))
     data = Dataset.load_from_df(reviews[['ReviewerName', 'CourseName', 'RatingStar']], reader)
 
@@ -238,11 +283,11 @@ with tab3:
     trainset = data.build_full_trainset()
     algorithm.fit(trainset)
     
-    # 2. Save SVD model
+    # 3. Save SVD model
     from surprise import dump
     dump.dump('svd_model', algo=algorithm)
 
-    # 3. Load SVD model
+    # 4. Load SVD model
     _, loaded_algorithm = dump.load('svd_model')
 
     # Define a function to suggest courses to a specific reviewer
@@ -255,7 +300,7 @@ with tab3:
         results = results[~results['CourseName'].isin(reviewed)]['CourseName'].to_list()[:num]
         return results
     
-    # 4. GUI
+    ## 4. GUI
     # Initialize session state for selected courses
     if 'svd_suggested_courses' not in st.session_state:
         st.session_state['svd_suggested_courses'] = []
@@ -264,11 +309,20 @@ with tab3:
     def svd_suggest_courses(user_name_input):
         svd_suggested_courses = similar_svd(user_name_input)
         return svd_suggested_courses
-    
-    user_name_input = st.text_input('Please enter your name:', '')
-    st.caption('e.g. Kevin M, Jianfei Z, Aman J, pooja s, Lauren J, etc.')
 
-    if st.button('Login'):
+    # Create two columns for user input and button
+    col1, col2 = st.columns([3, 1])
+
+    # User input in the first column with a unique key
+    with col1:
+        user_name_input = st.text_input('Please enter your name:', '')
+        st.caption('e.g. Kevin M, Jianfei Z, Aman J, pooja s, Lauren J, etc.')
+
+    # Button in the second column
+    with col2:
+        login_button = st.button('Login')
+
+    if login_button:
         if user_name_input in reviews['ReviewerName'].values:
             st.success('Successfully logged in!')
 
@@ -292,10 +346,10 @@ with tab3:
                 
                     # Display the course details using st.write or st.table
                     st.markdown(f"<h2 style='font-size:125%;'><b>{svd_course_details['CourseName']}</b></h2>", unsafe_allow_html=True)
-                    st.write("Description:", svd_course_details['Results'])
-                    st.write("Provider:", svd_course_details['Unit'])
-                    st.write("Average Rating:", svd_course_details['AvgStar'])
-                    st.write("Level:", svd_course_details['Level'])
+                    st.write("**Description:**", svd_course_details['Results'])
+                    st.write("**Provider:**", svd_course_details['Unit'])
+                    st.write("**Average Rating:**", svd_course_details['AvgStar'])
+                    st.write("**Level:**", svd_course_details['Level'])
                     
                     # Add a separator for better readability
                     st.markdown("---")
@@ -307,12 +361,14 @@ with tab3:
             st.error('No user information found, please try again.')
     
 with tab4:
+    st.subheader("About Us")
+
     # Create two columns for the profiles
     col1, col2 = st.columns(2)
 
     with col1:
         # Profile for Linh N.
-        st.subheader("Linh N.")
+        st.markdown("#### Linh N.")
         st.write("Email: linh.n@gmail.com")
         st.write('Phone: +987654321')
         st.write('Role: Data Processing and Modelling')
@@ -324,7 +380,7 @@ with tab4:
 
     with col2:
         # Profile for Phuong N.
-        st.subheader("Phuong N.")
+        st.markdown("#### Phuong N.")
         st.write("Email: phuong.n@gmail.com")
         st.write('Phone: +123456789')
         st.write('Role: Model Fine-Tuning')
@@ -341,6 +397,7 @@ with tab4:
 
 
 with tab5:
+    st.subheader("About This Project")
 
     # Introduction
     st.markdown("#### Introduction")
