@@ -267,10 +267,6 @@ with tab2:  # FIND A COURSE (GENSIM)
 
     # Display the suggested courses and their details
     if find_matches_button or gensim_min_rating or gensim_level:
-        st.write(find_matches_button)
-        st.write(user_course_input)
-        st.write(gensim_min_rating)
-        st.write(gensim_level)
         gensim_suggested_courses = suggest_courses_gensim(user_course_input, gensim_min_rating, gensim_level)
         
         # Iterate over the suggested courses and display their details
@@ -320,17 +316,10 @@ with tab3:  # TOP PICKS FOR YOU (SVD)
 
     # Define a function to suggest courses to a specific reviewer
     @st.cache_data(ttl="7 days")
-    def similar_svd(user_name, min_rating=None, levels=None, num=5):
-        reviewed = reviews[reviews['ReviewerName']==user_name]['CourseName'].to_list()
+    def similar_svd(name, num=5):
+        reviewed = reviews[reviews['ReviewerName']==name]['CourseName'].to_list()
         results = reviews[['CourseName']].copy()
-        results['EstScore'] = results['CourseName'].apply(lambda x: loaded_algorithm.predict(user_name, x).est)
-
-        # Apply filters
-        if min_rating:
-            results = results[results['EstScore'] >= min_rating]
-        if levels:
-            results = results[results['CourseName'].isin(levels)]
-
+        results['EstScore'] = results['CourseName'].apply(lambda x: loaded_algorithm.predict(name, x).est)
         results = results.sort_values(by=['EstScore'], ascending=False).drop_duplicates()
         results = results[~results['CourseName'].isin(reviewed)]['CourseName'].to_list()[:num]
         return results
@@ -341,8 +330,8 @@ with tab3:  # TOP PICKS FOR YOU (SVD)
         st.session_state['svd_suggested_courses'] = []
 
     # Define a function to suggest courses similar to user input
-    def suggest_courses_svd(user_name_input, svd_min_rating, svd_level):
-        svd_suggested_courses = similar_svd(user_name_input, svd_min_rating, svd_level)
+    def svd_suggest_courses(user_name_input):
+        svd_suggested_courses = similar_svd(user_name_input)
         return svd_suggested_courses
 
     # Create two columns for user input and button
@@ -357,31 +346,12 @@ with tab3:  # TOP PICKS FOR YOU (SVD)
     with col2:
         login_button = st.button('Login')
 
-    # Divide the page into three columns
-    col1, col2, col3 = st.columns(3)
-
-    # Add widgets to each column
-    with col1:
-        # User input for minimum rating
-        svd_min_rating_options2 = ["1+", "2+", "3+", "4+", "5"]
-        svd_min_rating = st.radio("Select minimum rating 2:", svd_min_rating_options2)
-
-        # Map selected option to numeric value
-        min_rating_mapping = {"1+": 1.0, "2+": 2.0, "3+": 3.0, "4+": 4.0, "5": 5.0}
-        svd_min_rating = min_rating_mapping.get(svd_min_rating)
-
-    with col2:
-        # User input for course level
-        svd_level_options = courses['Level'].unique()
-        svd_level = st.radio("Select course level 2:", svd_level_options)
-
     if login_button:
         if user_name_input in reviews['ReviewerName'].values:
             st.success('Successfully logged in!')
 
             # Update the session state with suggested courses
-            st.session_state['svd_suggested_courses'] = suggest_courses_svd(user_name_input, svd_min_rating, svd_level)
-            # svd_suggested_courses = svd_suggest_courses(user_name_input)
+            st.session_state['svd_suggested_courses'] = svd_suggest_courses(user_name_input)
 
             st.subheader('TOP PICKS FOR YOU')
             
