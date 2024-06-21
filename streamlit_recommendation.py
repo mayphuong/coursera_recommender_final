@@ -49,15 +49,15 @@ custom_css = """
     display: flex;
     justify-content: space-between;
 }
+
 .stTabs [data-baseweb="tab"] {
     flex: 1;
     text-align: center;
-    background-color: #F3F0EA;
     color: #0056D2;
     border-radius: 4px 4px 0px 0px;
-    padding-top: 10px;
-    padding-bottom: 10px;
+    padding: 10px;
 }
+
 .stTabs [aria-selected="true"] {
     background-color: #0056D2;
     color: #F3F0EA;
@@ -67,9 +67,7 @@ custom_css = """
     border: none ;
 } 
 
-
 [data-baseweb="base-input"]{
-    background-color: rgb(243, 240, 234);
     border: solid ;
 } 
 
@@ -84,7 +82,6 @@ custom_css = """
 [data-testid="baseButton-secondary"] {
   margin-top: 30px;
   color: white !important;
-
 }
 
 [data-testid="stWidgetLabel"] {
@@ -100,9 +97,6 @@ code {
     font-size: 14px;
     font-weight: bold;
 }
-
-
-
 </style>
 """
 
